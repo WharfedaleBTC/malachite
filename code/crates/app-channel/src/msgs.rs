@@ -482,6 +482,10 @@ pub enum NetworkMsg<Ctx: Context> {
     PublishProposalPart(StreamMessage<Ctx::ProposalPart>),
     /// WHARFEDALE: publish an opaque payload on the Mempool channel.
     PublishTransactions(Bytes),
+    /// WHARFEDALE: give the network layer the validator set, which it types peers by, before
+    /// consensus starts a height (it otherwise learns it only on `StartHeight`). Lets the
+    /// application hold its first height without its validator peers staying typed as full nodes.
+    UpdateValidatorSet(Ctx::ValidatorSet),
 }
 
 impl<Ctx: Context> From<NetworkMsg<Ctx>> for NetworkActorMsg<Ctx> {
@@ -489,6 +493,7 @@ impl<Ctx: Context> From<NetworkMsg<Ctx>> for NetworkActorMsg<Ctx> {
         match msg {
             NetworkMsg::PublishProposalPart(part) => NetworkActorMsg::PublishProposalPart(part),
             NetworkMsg::PublishTransactions(data) => NetworkActorMsg::PublishMempoolMsg(data),
+            NetworkMsg::UpdateValidatorSet(set) => NetworkActorMsg::UpdateValidatorSet(set),
         }
     }
 }

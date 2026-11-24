@@ -61,8 +61,16 @@ where
                 let (reply, rx) = oneshot::channel();
                 self.sender.send(AppMsg::ConsensusReady { reply }).await?;
 
-                let (start_height, updates) = rx.await?;
-                reply_to.send((start_height, updates))?;
+                // WHARFEDALE: the application may hold the first height (no empty blocks until
+                // there is a transaction). Wait off the actor, as for `Finalized`, so other host
+                // messages (sync requests from peers) are served meanwhile.
+                tokio::spawn(async move {
+                    if let Ok((start_height, updates)) = rx.await {
+                        if let Err(e) = reply_to.send((start_height, updates)) {
+                            error!("ConsensusReady: connector failed to send the start height: {e}");
+                        }
+                    }
+                });
             }
 
             HostMsg::StartedRound {
