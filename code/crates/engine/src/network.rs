@@ -32,6 +32,16 @@ use crate::sync::SyncCodec;
 use crate::util::output_port::{OutputPort, OutputPortSubscriberTrait};
 use crate::util::streaming::StreamMessage;
 
+/// WHARFEDALE: an opaque application message received on the Mempool channel.
+#[derive(Clone, Debug)]
+pub struct MempoolInbound {
+    /// Peer whose connection delivered the message.
+    pub from: PeerId,
+    /// Publisher declared in the message, when the transport provides one.
+    pub published_by: Option<PeerId>,
+    pub data: bytes::Bytes,
+}
+
 pub type NetworkRef<Ctx> = ActorRef<Msg<Ctx>>;
 pub type NetworkMsg<Ctx> = Msg<Ctx>;
 
@@ -145,6 +155,8 @@ pub enum State<Ctx: Context> {
         ctrl_handle: Box<CtrlHandle>,
         recv_task: JoinHandle<()>,
         inbound_requests: HashMap<InboundRequestId, request_response::InboundRequestId>,
+        /// WHARFEDALE: application sink for Mempool messages.
+        mempool_sink: Option<tokio::sync::mpsc::Sender<MempoolInbound>>,
     },
 }
 
@@ -175,6 +187,13 @@ pub enum Msg<Ctx: Context> {
 
     /// Publish a proposal part
     PublishProposalPart(StreamMessage<Ctx::ProposalPart>),
+
+    /// WHARFEDALE: publish an opaque application payload on the Mempool channel.
+    PublishMempoolMsg(bytes::Bytes),
+
+    /// WHARFEDALE: where inbound Mempool messages are delivered. Messages are dropped (and
+    /// counted) when the sink is full, so transaction traffic never delays consensus.
+    SetMempoolSink(tokio::sync::mpsc::Sender<MempoolInbound>),
 
     /// Broadcast status to all direct peers
     BroadcastStatus(Status<Ctx>),
@@ -271,6 +290,7 @@ where
             ctrl_handle: Box::new(ctrl_handle),
             recv_task,
             inbound_requests: HashMap::new(),
+            mempool_sink: None,
         })
     }
 
@@ -307,6 +327,7 @@ where
             output_port,
             ctrl_handle,
             inbound_requests,
+            mempool_sink,
             ..
         } = state
         else {
@@ -351,6 +372,19 @@ where
                 match data {
                     Ok(data) => ctrl_handle.publish(Channel::ProposalParts, data).await?,
                     Err(e) => error!("Failed to encode proposal part: {e:?}"),
+                }
+            }
+
+            Msg::PublishMempoolMsg(data) => ctrl_handle.publish(Channel::Mempool, data).await?,
+
+            Msg::SetMempoolSink(sink) => *mempool_sink = Some(sink),
+
+            Msg::NewEvent(Event::MempoolMessage(from, published_by, data)) => {
+                if let Some(sink) = mempool_sink.as_ref() {
+                    let msg = MempoolInbound { from, published_by, data };
+                    if sink.try_send(msg).is_err() {
+                        debug!(%from, "Mempool sink full or closed, dropping message");
+                    }
                 }
             }
 

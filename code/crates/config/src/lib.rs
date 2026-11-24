@@ -44,6 +44,14 @@ pub struct ChannelNames {
     pub sync: String,
 
     pub liveness: String,
+
+    /// WHARFEDALE: application transaction gossip (see `P2pConfig::enable_mempool`).
+    #[serde(default = "default_mempool_channel")]
+    pub mempool: String,
+}
+
+fn default_mempool_channel() -> String {
+    "/mempool".to_string()
 }
 
 impl Default for ChannelNames {
@@ -53,6 +61,7 @@ impl Default for ChannelNames {
             proposal_parts: "/proposal_parts".to_string(),
             sync: "/sync".to_string(),
             liveness: "/liveness".to_string(),
+            mempool: default_mempool_channel(),
         }
     }
 }
@@ -68,6 +77,8 @@ pub struct PubSubMaxSizePerTopic {
     pub consensus: Option<ByteSize>,
     pub proposal_parts: Option<ByteSize>,
     pub liveness: Option<ByteSize>,
+    /// WHARFEDALE: application transaction gossip.
+    pub mempool: Option<ByteSize>,
 }
 
 /// Errors returned by [`ChannelNames::validate`].
@@ -96,6 +107,7 @@ impl ChannelNames {
             ("proposal_parts", self.proposal_parts.as_str()),
             ("sync", self.sync.as_str()),
             ("liveness", self.liveness.as_str()),
+            ("mempool", self.mempool.as_str()),
         ];
 
         for (field, name) in entries {
@@ -133,6 +145,10 @@ pub struct P2pConfig {
     #[serde(default)]
     pub persistent_peers_only: bool,
 
+    /// WHARFEDALE: subscribe to the Mempool channel and deliver its messages to the app.
+    #[serde(default)]
+    pub enable_mempool: bool,
+
     /// Peer discovery
     #[serde(default)]
     pub discovery: DiscoveryConfig,
@@ -165,6 +181,7 @@ impl Default for P2pConfig {
             listen_addr: Multiaddr::empty(),
             persistent_peers: vec![],
             persistent_peers_only: false,
+            enable_mempool: false,
             discovery: Default::default(),
             protocol: Default::default(),
             rpc_max_size: ByteSize::mib(10),
@@ -1361,6 +1378,7 @@ mod tests {
             proposal_parts: "/custom/proposal_parts".to_string(),
             sync: "/custom/sync".to_string(),
             liveness: "/custom/liveness".to_string(),
+            mempool: "/custom/mempool".to_string(),
         };
 
         let json = serde_json::to_string(&channel_names).unwrap();
@@ -1378,6 +1396,7 @@ mod tests {
             proposal_parts: "/app/proposal_parts/v1".to_string(),
             sync: "/app/sync/v1".to_string(),
             liveness: "/app/liveness/v1".to_string(),
+            mempool: "/app/mempool/v1".to_string(),
         };
 
         let config_with_custom = P2pConfig {

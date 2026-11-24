@@ -225,6 +225,11 @@ fn gossipsub_config(
             Channel::Liveness,
             max_payload_size_per_topic.liveness,
         ),
+        (
+            "mempool",
+            Channel::Mempool,
+            max_payload_size_per_topic.mempool,
+        ),
     ] {
         if let Some(max_payload_size) = max_payload_size {
             if max_payload_size >= max_transmit_size {

@@ -8,6 +8,7 @@ use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tracing::error;
 
+pub use malachitebft_app::engine::network::MempoolInbound;
 use malachitebft_app::consensus::Role;
 use malachitebft_app::consensus::VoteExtensionVerdicts;
 use malachitebft_app::types::core::ValueOrigin;
@@ -212,6 +213,9 @@ pub struct Channels<Ctx: Context> {
     pub requests: mpsc::Sender<ConsensusRequest<Ctx>>,
     /// Channel for sending requests to the network
     pub net_requests: mpsc::Sender<NetworkRequest>,
+    /// WHARFEDALE: application payloads received on the Mempool channel
+    /// (only delivered when `p2p.enable_mempool` is set).
+    pub mempool: mpsc::Receiver<MempoolInbound>,
 }
 
 /// Messages sent from consensus to the application.
@@ -476,12 +480,15 @@ impl<Ctx: Context> From<ConsensusMsg<Ctx>> for ConsensusActorMsg<Ctx> {
 pub enum NetworkMsg<Ctx: Context> {
     /// Publish a proposal part to the network, within a stream.
     PublishProposalPart(StreamMessage<Ctx::ProposalPart>),
+    /// WHARFEDALE: publish an opaque payload on the Mempool channel.
+    PublishTransactions(Bytes),
 }
 
 impl<Ctx: Context> From<NetworkMsg<Ctx>> for NetworkActorMsg<Ctx> {
     fn from(msg: NetworkMsg<Ctx>) -> NetworkActorMsg<Ctx> {
         match msg {
             NetworkMsg::PublishProposalPart(part) => NetworkActorMsg::PublishProposalPart(part),
+            NetworkMsg::PublishTransactions(data) => NetworkActorMsg::PublishMempoolMsg(data),
         }
     }
 }

@@ -225,6 +225,8 @@ pub struct PubSubMaxSizePerTopic {
     pub consensus: Option<usize>,
     pub proposal_parts: Option<usize>,
     pub liveness: Option<usize>,
+    /// WHARFEDALE: application transaction gossip.
+    pub mempool: Option<usize>,
 }
 
 #[derive(Clone, Debug)]
@@ -246,6 +248,8 @@ pub struct Config {
     pub sync_parallel_requests: usize,
     pub enable_consensus: bool,
     pub enable_sync: bool,
+    /// WHARFEDALE: subscribe to `Channel::Mempool` and emit `Event::MempoolMessage`.
+    pub enable_mempool: bool,
     pub protocol_names: ProtocolNames,
 }
 
@@ -357,6 +361,9 @@ pub enum Event {
     /// publisher declared in the message (`message.source`), or `None` when the
     /// transport carries none. They differ once a message is relayed.
     ConsensusMessage(Channel, PeerId, Option<PeerId>, Bytes),
+    /// WHARFEDALE: opaque application payload received on `Channel::Mempool`
+    /// (delivering peer, declared publisher, payload).
+    MempoolMessage(PeerId, Option<PeerId>, Bytes),
     LivenessMessage(Channel, PeerId, Bytes),
     Sync(sync::RawMessage),
     /// libp2p reported that an outbound sync request to `peer` could not be
@@ -575,6 +582,19 @@ async fn run(
             &config.channel_names,
         ) {
             error!("Error subscribing to Sync channel: {e}");
+            return;
+        };
+    }
+
+    // WHARFEDALE: application transaction gossip.
+    if config.enable_mempool {
+        if let Err(e) = pubsub::subscribe(
+            &mut swarm,
+            config.pubsub_protocol,
+            Channel::mempool(),
+            &config.channel_names,
+        ) {
+            error!("Error subscribing to Mempool channel: {e}");
             return;
         };
     }
@@ -1117,6 +1137,8 @@ fn event_from_gossipsub_message(
     let payload = Bytes::from(message.data);
     Some(if channel == Channel::Liveness {
         Event::LivenessMessage(channel, peer_id, payload)
+    } else if channel == Channel::Mempool {
+        Event::MempoolMessage(peer_id, published_by, payload)
     } else {
         Event::ConsensusMessage(channel, peer_id, published_by, payload)
     })
@@ -1250,6 +1272,8 @@ async fn handle_broadcast_event(
             // Broadcast never relays, so the delivering peer is the publisher.
             let event = if channel == Channel::Liveness {
                 Event::LivenessMessage(channel, peer_id, message)
+            } else if channel == Channel::Mempool {
+                Event::MempoolMessage(peer_id, Some(peer_id), message)
             } else {
                 Event::ConsensusMessage(channel, peer_id, Some(peer_id), message)
             };
@@ -1455,6 +1479,7 @@ mod tests {
             sync_parallel_requests: 5,
             enable_consensus: true,
             enable_sync: false,
+            enable_mempool: false,
             protocol_names: ProtocolNames::default(),
         }
     }
@@ -1479,6 +1504,7 @@ mod tests {
             sync_parallel_requests: 5,
             enable_consensus: true,
             enable_sync: false,
+            enable_mempool: false,
             protocol_names: ProtocolNames::default(),
         };
         config.rpc_max_size = 3 * 1024 * 1024;

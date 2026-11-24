@@ -28,6 +28,7 @@ fn make_config(port: usize) -> Config {
         sync_parallel_requests: 5,
         enable_consensus: true,
         enable_sync: false,
+        enable_mempool: false,
         protocol_names: ProtocolNames::default(),
     }
 }

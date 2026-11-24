@@ -88,6 +88,7 @@ fn make_config(port: u16, persistent_peers: Vec<u16>) -> Config {
         sync_parallel_requests: 5,
         enable_consensus: true,
         enable_sync: false,
+        enable_mempool: false,
         protocol_names: ProtocolNames::default(),
         persistent_peers_only: false,
     }

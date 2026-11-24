@@ -333,6 +333,7 @@ fn make_network_config(cfg: &ConsensusConfig, value_sync_cfg: &ValueSyncConfig) 
             proposal_parts: cfg.p2p.channel_names.proposal_parts.clone(),
             sync: cfg.p2p.channel_names.sync.clone(),
             liveness: cfg.p2p.channel_names.liveness.clone(),
+            mempool: cfg.p2p.channel_names.mempool.clone(),
         },
         rpc_max_size: cfg.p2p.rpc_max_size.as_u64() as usize,
         pubsub_max_size: cfg.p2p.pubsub_max_size.as_u64() as usize,
@@ -349,12 +350,17 @@ fn make_network_config(cfg: &ConsensusConfig, value_sync_cfg: &ValueSyncConfig) 
                 .liveness
                 .as_ref()
                 .map(|size| size.as_u64() as usize),
+            mempool: topic_max_sizes
+                .mempool
+                .as_ref()
+                .map(|size| size.as_u64() as usize),
         },
         sync_request_timeout: sync_cfg.request_timeout,
         sync_max_request_size: sync_cfg.max_request_size,
         sync_parallel_requests: sync_cfg.parallel_requests,
         enable_consensus: cfg.enabled,
         enable_sync: value_sync_cfg.enabled,
+        enable_mempool: cfg.p2p.enable_mempool,
         protocol_names: network::ProtocolNames {
             consensus: cfg.p2p.protocol_names.consensus.clone(),
             discovery_kad: cfg.p2p.protocol_names.discovery_kad.clone(),

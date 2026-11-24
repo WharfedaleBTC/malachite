@@ -118,6 +118,7 @@ pub(crate) fn publish_max_payload_size(
         Channel::Consensus => max_size_per_topic.consensus,
         Channel::ProposalParts => max_size_per_topic.proposal_parts,
         Channel::Liveness => max_size_per_topic.liveness,
+        Channel::Mempool => max_size_per_topic.mempool,
         Channel::Sync => None,
     }
     .unwrap_or(global_max_size)

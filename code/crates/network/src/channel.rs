@@ -11,6 +11,8 @@ pub struct ChannelNames {
     pub proposal_parts: String,
     pub sync: String,
     pub liveness: String,
+    /// WHARFEDALE: application transaction gossip.
+    pub mempool: String,
 }
 
 impl Default for ChannelNames {
@@ -20,6 +22,7 @@ impl Default for ChannelNames {
             proposal_parts: "/proposal_parts".to_string(),
             sync: "/sync".to_string(),
             liveness: "/liveness".to_string(),
+            mempool: "/mempool".to_string(),
         }
     }
 }
@@ -30,6 +33,8 @@ pub enum Channel {
     Liveness,
     ProposalParts,
     Sync,
+    /// WHARFEDALE: application transaction gossip; payloads are opaque bytes.
+    Mempool,
 }
 
 impl Channel {
@@ -39,7 +44,13 @@ impl Channel {
             Channel::ProposalParts,
             Channel::Sync,
             Channel::Liveness,
+            Channel::Mempool,
         ]
+    }
+
+    /// WHARFEDALE: the application transaction-gossip channel.
+    pub fn mempool() -> &'static [Channel] {
+        &[Channel::Mempool]
     }
 
     pub fn consensus() -> &'static [Channel] {
@@ -64,6 +75,7 @@ impl Channel {
             Channel::ProposalParts => &channel_names.proposal_parts,
             Channel::Sync => &channel_names.sync,
             Channel::Liveness => &channel_names.liveness,
+            Channel::Mempool => &channel_names.mempool,
         }
     }
 
@@ -82,6 +94,7 @@ impl Channel {
     pub fn gossipsub_topic_hashes(channel_names: &ChannelNames) -> HashSet<gossipsub::TopicHash> {
         Self::consensus()
             .iter()
+            .chain(Self::mempool())
             .map(|channel| channel.to_gossipsub_topic(channel_names).hash())
             .collect()
     }
@@ -104,6 +117,8 @@ impl Channel {
             Some(Self::Sync)
         } else if topic == &Self::Liveness.to_gossipsub_topic(channel_names).hash() {
             Some(Self::Liveness)
+        } else if topic == &Self::Mempool.to_gossipsub_topic(channel_names).hash() {
+            Some(Self::Mempool)
         } else {
             None
         }
@@ -121,6 +136,8 @@ impl Channel {
             Some(Self::Sync)
         } else if topic == &Self::Liveness.to_broadcast_topic(channel_names) {
             Some(Self::Liveness)
+        } else if topic == &Self::Mempool.to_broadcast_topic(channel_names) {
+            Some(Self::Mempool)
         } else {
             None
         }
@@ -144,8 +161,9 @@ mod tests {
         let names = ChannelNames::default();
         let hashes = Channel::gossipsub_topic_hashes(&names);
 
-        assert_eq!(hashes.len(), Channel::consensus().len());
-        for channel in Channel::consensus() {
+        // WHARFEDALE: the whitelist also admits the Mempool channel.
+        assert_eq!(hashes.len(), Channel::consensus().len() + Channel::mempool().len());
+        for channel in Channel::consensus().iter().chain(Channel::mempool()) {
             assert!(
                 hashes.contains(&channel.to_gossipsub_topic(&names).hash()),
                 "missing {channel:?}"
