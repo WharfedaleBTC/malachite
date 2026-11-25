@@ -779,7 +779,9 @@ where
 
             // WHARFEDALE: deliver Mempool-channel payloads to the application.
             let (tx_mempool, rx_mempool) = mpsc::channel(1024);
-            network.cast(malachitebft_engine::network::Msg::SetMempoolSink(tx_mempool))?;
+            network.cast(malachitebft_engine::network::Msg::SetMempoolSink(
+                tx_mempool,
+            ))?;
 
             // 3. WAL actor (default or custom)
             let wal = match wal_builder {

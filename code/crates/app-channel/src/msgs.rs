@@ -8,9 +8,9 @@ use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tracing::error;
 
-pub use malachitebft_app::engine::network::MempoolInbound;
 use malachitebft_app::consensus::Role;
 use malachitebft_app::consensus::VoteExtensionVerdicts;
+pub use malachitebft_app::engine::network::MempoolInbound;
 use malachitebft_app::types::core::ValueOrigin;
 use malachitebft_app::types::MisbehaviorEvidence;
 use malachitebft_engine::consensus::state_dump::StateDump;

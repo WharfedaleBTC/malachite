@@ -157,6 +157,12 @@ pub enum State<Ctx: Context> {
         inbound_requests: HashMap<InboundRequestId, request_response::InboundRequestId>,
         /// WHARFEDALE: application sink for Mempool messages.
         mempool_sink: Option<tokio::sync::mpsc::Sender<MempoolInbound>>,
+        /// WHARFEDALE: the validator proof of each connected peer, replayed to new
+        /// subscribers. A peer sends its proof once per session, usually right after
+        /// connecting, which can be before consensus subscribes; without the replay the
+        /// proof is lost and the peer stays typed non-validator until it reconnects.
+        /// Dropped when the peer disconnects.
+        proofs: Box<HashMap<PeerId, ValidatorProof<Ctx>>>,
     },
 }
 
@@ -291,6 +297,7 @@ where
             recv_task,
             inbound_requests: HashMap::new(),
             mempool_sink: None,
+            proofs: Box::new(HashMap::new()),
         })
     }
 
@@ -328,6 +335,7 @@ where
             ctrl_handle,
             inbound_requests,
             mempool_sink,
+            proofs,
             ..
         } = state
         else {
@@ -346,6 +354,14 @@ where
 
                 for (peer, channel) in subscriptions.iter() {
                     subscriber.send(NetworkEvent::PeerSubscribed(*peer, *channel));
+                }
+
+                // WHARFEDALE: proofs that arrived before this subscriber (see `proofs`).
+                for (peer_id, proof) in proofs.iter() {
+                    subscriber.send(NetworkEvent::ValidatorProofReceived {
+                        peer_id: *peer_id,
+                        proof: proof.clone(),
+                    });
                 }
 
                 subscriber.subscribe_to_port(output_port);
@@ -381,7 +397,11 @@ where
 
             Msg::NewEvent(Event::MempoolMessage(from, published_by, data)) => {
                 if let Some(sink) = mempool_sink.as_ref() {
-                    let msg = MempoolInbound { from, published_by, data };
+                    let msg = MempoolInbound {
+                        from,
+                        published_by,
+                        data,
+                    };
                     if sink.try_send(msg).is_err() {
                         debug!(%from, "Mempool sink full or closed, dropping message");
                     }
@@ -465,6 +485,7 @@ where
             Msg::NewEvent(Event::PeerDisconnected(peer_id)) => {
                 peers.remove(&peer_id);
                 subscriptions.retain(|(peer, _)| *peer != peer_id);
+                proofs.remove(&peer_id); // WHARFEDALE
                 output_port.send(NetworkEvent::PeerDisconnected(peer_id));
             }
 
@@ -604,6 +625,7 @@ where
                 }
 
                 debug!(%peer_id, public_key = %hex::encode(&proof.public_key), "Received validator proof");
+                proofs.insert(peer_id, proof.clone()); // WHARFEDALE: kept for replay
                 output_port.send(NetworkEvent::ValidatorProofReceived { peer_id, proof });
             }
 

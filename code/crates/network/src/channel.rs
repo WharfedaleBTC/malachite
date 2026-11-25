@@ -162,7 +162,10 @@ mod tests {
         let hashes = Channel::gossipsub_topic_hashes(&names);
 
         // WHARFEDALE: the whitelist also admits the Mempool channel.
-        assert_eq!(hashes.len(), Channel::consensus().len() + Channel::mempool().len());
+        assert_eq!(
+            hashes.len(),
+            Channel::consensus().len() + Channel::mempool().len()
+        );
         for channel in Channel::consensus().iter().chain(Channel::mempool()) {
             assert!(
                 hashes.contains(&channel.to_gossipsub_topic(&names).hash()),

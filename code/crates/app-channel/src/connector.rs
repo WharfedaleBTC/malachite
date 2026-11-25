@@ -67,7 +67,9 @@ where
                 tokio::spawn(async move {
                     if let Ok((start_height, updates)) = rx.await {
                         if let Err(e) = reply_to.send((start_height, updates)) {
-                            error!("ConsensusReady: connector failed to send the start height: {e}");
+                            error!(
+                                "ConsensusReady: connector failed to send the start height: {e}"
+                            );
                         }
                     }
                 });
